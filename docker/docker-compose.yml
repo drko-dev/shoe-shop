@@ -1,0 +1,70 @@
+version: '3'
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+
+volumes:
+  mysql:
+    driver: local
+
+services:
+
+### PHP-FPM ##############################################
+    php-fpm:
+      build:
+        context: ./php-fpm
+        args:
+          - PHP_VERSION=7.2
+      volumes:
+        - ./php-fpm/php7.2.ini:/usr/local/etc/php/php.ini
+        - ../:/var/www:cached
+      expose:
+        - "9000"
+      ports:
+        - "6001:6001"
+      extra_hosts:
+        - "dockerhost:10.0.75.1"
+      networks:
+        - backend
+
+### NGINX Server #########################################
+    nginx:
+      build:
+        context: ./nginx
+        args:
+          - PHP_UPSTREAM_CONTAINER=php-fpm
+          - PHP_UPSTREAM_PORT=9000
+      volumes:
+        - ../:/var/www:cached
+        - ./logs/nginx/:/var/log/nginx
+        - ./nginx/sites/:/etc/nginx/sites-available
+      ports:
+        - "80:80"
+        - "443:443"
+      depends_on:
+        - php-fpm
+      networks:
+        - frontend
+        - backend
+
+### MySQL ################################################
+    mysql:
+      build:
+        context: ./mysql
+        args:
+          - MYSQL_VERSION=5.7
+      environment:
+        - MYSQL_DATABASE=homestead
+        - MYSQL_USER=homestead
+        - MYSQL_PASSWORD=secret
+        - MYSQL_ROOT_PASSWORD=root
+      volumes:
+        - ./data/mysql:/var/lib/mysql
+        - ./mysql/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      ports:
+        - "3306:3306"
+      networks:
+        - backend
